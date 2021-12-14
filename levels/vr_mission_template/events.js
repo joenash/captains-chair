@@ -16,11 +16,16 @@ module.exports = async function (event, world) {
     const token = await getSyncToken(playerGuid);
 
     let syncClient = new SyncClient(token);
-    let syncStream = await initializeStream(syncClient, playerGuid, game);
+    let syncStream = await initializeStream(
+      syncClient,
+      playerGuid,
+      playerGuid,
+      game
+    );
 
     console.log(syncStream);
 
-    initializeDocuments(syncClient, teamDocuments, playerGuid, username);
+    initializeDocuments(syncClient, teamDocuments, playerGuid, username, game);
 
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
@@ -46,7 +51,7 @@ module.exports = async function (event, world) {
 
 async function getSyncToken(guid) {
   console.log("Fetching token");
-  const res = await fetch(`https://f63c-82-217-150-167.ngrok.io/token/${guid}`);
+  const res = await fetch(`http://localhost:3000/${guid}`);
   const data = await res.json();
   const token = data.token;
   console.log(token);
@@ -55,7 +60,7 @@ async function getSyncToken(guid) {
 
 async function getTeams(guid) {
   console.log("Fetching Teams");
-  const res = await fetch(`https://f63c-82-217-150-167.ngrok.io/team/${guid}`);
+  const res = await fetch(`http//localhost:3000/${guid}`);
   const teamIds = await res.json();
   console.log(teamIds);
   return teamIds;
@@ -65,7 +70,8 @@ async function initializeDocuments(
   syncClient,
   documents,
   playerGuid,
-  playerName
+  playerName,
+  game
 ) {
   for (teamDocument of documents) {
     const document = await syncClient.document(teamDocument.uniqueName);
@@ -93,13 +99,20 @@ async function initializeDocuments(
         console.log("Document update() successful, new data:", value);
       })
       .catch((error) => console.log("Failed to write to doc", error));
+
+    for (const player of playerList) {
+      if (player.guid !== playerGuid) {
+        initializeStream(syncClient, player.guid, playerGuid, game);
+      }
+    }
   }
 }
 
-async function initializeStream(syncClient, playerGuid, game) {
+async function initializeStream(syncClient, playerGuid, yourPlayer, game) {
+  console.log("Init Stream game:", game);
   let stream = await syncClient.stream(playerGuid);
-
-  if (stream.uniqueName !== playerGuid) {
+  console.log("Initialized stream: ", stream.uniqueName);
+  if (stream.uniqueName !== yourPlayer) {
     const s = game.add.sprite(300, 400, "playerCharacter", 0);
     s.anchor.setTo(0, -0.5);
     console.log("sprite", s);
@@ -108,6 +121,8 @@ async function initializeStream(syncClient, playerGuid, game) {
       const { x, y } = event.message.data;
       s.x = x;
       s.y = y;
+      // applying the players sent key to their movement
+      // Check true position and update on interval
     });
   }
 
