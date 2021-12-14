@@ -46,7 +46,7 @@ module.exports = async function (event, world) {
 
 async function getSyncToken(guid) {
   console.log("Fetching token");
-  const res = await fetch(`http://localhost:3000/token/${guid}`);
+  const res = await fetch(`https://f63c-82-217-150-167.ngrok.io/token/${guid}`);
   const data = await res.json();
   const token = data.token;
   console.log(token);
@@ -55,7 +55,7 @@ async function getSyncToken(guid) {
 
 async function getTeams(guid) {
   console.log("Fetching Teams");
-  const res = await fetch(`http://localhost:3000/team/${guid}`);
+  const res = await fetch(`https://f63c-82-217-150-167.ngrok.io/team/${guid}`);
   const teamIds = await res.json();
   console.log(teamIds);
   return teamIds;
@@ -98,15 +98,19 @@ async function initializeDocuments(
 
 async function initializeStream(syncClient, playerGuid, game) {
   let stream = await syncClient.stream(playerGuid);
-  const s = game.add.sprite(300, 400, "playerCharacter", 0);
-  s.anchor.setTo(0, -0.5);
-  console.log("sprite", s);
-  stream.on("messagePublished", (event) => {
-    console.log('Received a "messagePublished" event:', event);
-    const { x, y } = event.message.data;
-    s.x = x;
-    s.y = y;
-  });
+
+  if (stream.uniqueName !== playerGuid) {
+    const s = game.add.sprite(300, 400, "playerCharacter", 0);
+    s.anchor.setTo(0, -0.5);
+    console.log("sprite", s);
+    stream.on("messagePublished", (event) => {
+      console.log('Received a "messagePublished" event:', event);
+      const { x, y } = event.message.data;
+      s.x = x;
+      s.y = y;
+    });
+  }
+
   return stream;
 }
 
