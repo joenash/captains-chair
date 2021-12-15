@@ -34,7 +34,7 @@ module.exports = async function (event, world) {
     // Streams will publish max 30 times per second, so interval is in
     // theory more predictable and should yield smoother
     // performance.
-    setInterval(() => publishMove(syncStream, player), 50);
+    //setInterval(() => publishMove(syncStream, player), 50);
 
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
@@ -133,6 +133,7 @@ async function initializeStream(syncClient, world, playerGuid) {
 
     // Adding the sprite to the object group renders it in the correct layer.
     // However, it introduces collision with the player, on the players side.
+    // IDEA: Add a sprite to the entitygroup that doesn't have physics,
     //world.entityService.groups.objects.add(s);
 
     // Strip playerCharacters and players out of the object group to remove
