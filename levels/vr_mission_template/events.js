@@ -1,19 +1,30 @@
+// The Sin Bin
+let syncClient;
+let streams = [];
+const keys = [
+  "w",
+  "arrowup",
+  "a",
+  "arrowleft",
+  "s",
+  "arrowright",
+  "d",
+  "arrowdown",
+];
+const directionFrames = {
+  LEFT: 24,
+  RIGHT: 8,
+  UP: 16,
+  DOWN: 0,
+};
+let keydownhandler;
+let keyuphandler;
+
 module.exports = async function (event, world) {
   console.log(`Captain's chair: ${event.name}`);
-
   if (event.name === "mapDidLoad") {
     const playerGuid = world.getContext().user.guid;
     const { player } = world.__internals.level;
-    const keys = [
-      "w",
-      "arrowup",
-      "a",
-      "arrowleft",
-      "s",
-      "arrowright",
-      "d",
-      "arrowdown",
-    ];
     const { game } = world.__internals.level;
 
     let { SyncClient } = require("twilio-sync");
@@ -23,10 +34,9 @@ module.exports = async function (event, world) {
     console.log("Fetching player info");
     const token = await getSyncToken(playerGuid);
 
-    let syncClient = new SyncClient(token);
+    syncClient = new SyncClient(token);
+    console.log(syncClient);
     let syncStream = await initializeStream(syncClient, world, playerGuid);
-
-    console.log(syncStream);
 
     initializeDocuments(syncClient, teamDocuments, world);
 
@@ -35,21 +45,43 @@ module.exports = async function (event, world) {
     // theory more predictable and should yield smoother
     // performance.
     //setInterval(() => publishMove(syncStream, player), 50);
-
-    window.addEventListener("keydown", (event) => {
+    keydownhandler = (event) => {
       const key = event.key.toLowerCase();
       if (keys.includes(key)) {
         lastKey = key;
         publishMove(syncStream, player);
       }
-    });
-    window.addEventListener("keyup", (event) => {
+    };
+    keyuphandler = (event) => {
       const key = event.key.toLowerCase();
       if (keys.includes(key)) {
         lastKey = "";
         publishMove(syncStream, player);
       }
-    });
+    };
+    window.addEventListener("keydown", keydownhandler);
+    window.addEventListener("keyup", keyuphandler);
+  }
+
+  if (event.name === "levelWillUnload") {
+    console.log("Level unloading", syncClient);
+
+    window.removeEventListener("keydown", keydownhandler);
+    window.removeEventListener("keyup", keyuphandler);
+
+    const playerGuid = world.getContext().user.guid;
+    const foundStream = streams.findIndex(
+      (stream) => stream.uniqueName === playerGuid
+    );
+    if (foundStream > -1) {
+      console.log("Closing player stream");
+      streams[foundStream].close();
+    }
+
+    if (typeof syncClient !== "undefined") {
+      console.log("Shutting down sync client");
+      syncClient.shutdown();
+    }
   }
 };
 
@@ -71,19 +103,37 @@ async function getTeams(guid) {
 async function initializeDocuments(syncClient, documents, world) {
   const playerGuid = world.getContext().user.guid;
   const username = world.getContext().settings.name;
+  const currentLevel = world.getContext().currentLevel.levelName;
   for (teamDocument of documents) {
     const document = await syncClient.document(teamDocument.uniqueName);
     console.log(`Successfully opened document ${teamDocument.uniqueName}`);
 
     document.on("updated", (event) => {
-      console.log('Received an "updated" event: ', event);
+      console.log(`Document ${document.sid} update`);
+      if (event.isLocal) {
+        console.log("local update");
+        return;
+      }
+      const playerList = event.data.players;
+      for (const p of playerList) {
+        // TODO check if active here
+        if (p.guid !== playerGuid) {
+          if (p.level === currentLevel) {
+            initializeStream(syncClient, world, p.guid);
+          }
+        }
+      }
       // TODO Handle players joining here
     });
 
     const playerList = document.data.players;
     const playerIndex = playerList.findIndex((p) => p.guid === playerGuid);
     if (playerIndex === -1) {
-      playerList.push({ guid: playerGuid, name: username });
+      playerList.push({
+        guid: playerGuid,
+        name: username,
+        level: currentLevel,
+      });
       // TODO add active status here
     } else {
       // TODO check active status and update here
@@ -100,7 +150,9 @@ async function initializeDocuments(syncClient, documents, world) {
     for (const p of playerList) {
       // TODO check if active here
       if (p.guid !== playerGuid) {
-        initializeStream(syncClient, world, p.guid);
+        if (p.level === currentLevel) {
+          initializeStream(syncClient, world, p.guid);
+        }
       }
     }
   }
@@ -110,20 +162,34 @@ async function initializeStream(syncClient, world, playerGuid) {
   const yourPlayerGuid = world.getContext().user.guid;
   const { game } = world.__internals.level;
   console.log(`Initializing stream for ${playerGuid}`);
-  let stream = await syncClient.stream(playerGuid);
-  console.log(`Initialized stream for ${playerGuid}: ${stream.uniqueName}`);
+  console.log("streams", streams);
+  const streamExists = streams.findIndex(
+    (stream) => stream.uniqueName === playerGuid
+  );
+  if (streamExists > -1 && !streams[streamExists].closed) {
+    console.log("Stream already open");
+    return;
+  }
 
-  if (stream.uniqueName !== yourPlayerGuid) {
-    //if (true) {
+  console.log("streams", streams);
+  let stream = await syncClient.stream(playerGuid);
+  if (streamExists > -1) {
+    streams[streamExists] = stream;
+    console.log(
+      `Reopened stream for ${playerGuid}: ${stream.uniqueName}, ${stream.sid}`
+    );
+  } else {
+    streams.push(stream);
+    console.log(
+      `Initialized stream for ${playerGuid}: ${stream.uniqueName}, ${stream.sid}`
+    );
+  }
+
+  //if (stream.uniqueName !== yourPlayerGuid) {
+  if (true) {
     const s = game.add.sprite(0, 0, "playerCharacter", 0);
 
     // Set up animations
-    const directionFrames = {
-      LEFT: 24,
-      RIGHT: 8,
-      UP: 16,
-      DOWN: 0,
-    };
 
     s.animations.add("moveDown", [5, 6, 7, 6], 8, true);
     s.animations.add("moveUp", [21, 22, 23, 22], 8, true);
@@ -188,19 +254,17 @@ async function initializeStream(syncClient, world, playerGuid) {
       }
       moveSprite(s, data);
     });
+
+    stream.on("removed", (event) => {
+      console.log(`Stream ${stream.sid} was removed`);
+      streams = streams.filter((s) => s.sid !== stream.sid);
+    });
   }
 
   return stream;
 }
 
 function moveSprite(sprite, data) {
-  const directionFrames = {
-    LEFT: 24,
-    RIGHT: 8,
-    UP: 16,
-    DOWN: 0,
-  };
-
   const { keys, movementDisabled, collision, x, y } = data;
 
   let moveSpeed = {};
@@ -284,6 +348,11 @@ function reconcilePosition(sprite, data) {
 }
 
 async function publishMove(stream, player) {
+  if (stream.closed) {
+    console.log("stream closed");
+    return;
+  }
+
   const keys = {
     up: { isDown: player.keys.up.isDown },
     w: { isDown: player.keys.w.isDown },
