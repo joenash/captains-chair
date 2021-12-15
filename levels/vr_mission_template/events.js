@@ -52,7 +52,7 @@ module.exports = async function (event, world) {
 
 async function getSyncToken(guid) {
   console.log("Fetching token");
-  const res = await fetch(`http://localhost:3000/token/${guid}`);
+  const res = await fetch(`https://845b-82-217-150-167.ngrok.io/token/${guid}`);
   const data = await res.json();
   const token = data.token;
   console.log(token);
@@ -61,7 +61,7 @@ async function getSyncToken(guid) {
 
 async function getTeams(guid) {
   console.log("Fetching Teams");
-  const res = await fetch(`http://localhost:3000/team/${guid}`);
+  const res = await fetch(`https://845b-82-217-150-167.ngrok.io/team/${guid}`);
   const teamIds = await res.json();
   console.log(teamIds);
   return teamIds;
