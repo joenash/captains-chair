@@ -110,8 +110,8 @@ async function initializeStream(syncClient, world, playerGuid) {
   console.log("Init Stream game:", game);
   let stream = await syncClient.stream(playerGuid);
   console.log("Initialized stream: ", stream.uniqueName);
-  // if (stream.uniqueName !== yourPlayerGuid) {
-  if (true) {
+  if (stream.uniqueName !== yourPlayerGuid) {
+    //if (true) {
     const s = game.add.sprite(0, 0, "playerCharacter", 0);
     s.anchor.setTo(0, 0);
     game.physics.arcade.enable(s);
