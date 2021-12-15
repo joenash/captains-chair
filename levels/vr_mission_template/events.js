@@ -136,8 +136,12 @@ async function initializeDocuments(syncClient, documents, world) {
       });
       // TODO add active status here
     } else {
-      // TODO check active status and update here
-      console.log("Player already exists");
+      playerList[playerIndex] = {
+        guid: playerGuid,
+        name: username,
+        level: currentLevel,
+      };
+      console.log("Player already exists: updating");
     }
 
     document
