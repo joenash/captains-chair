@@ -3,7 +3,7 @@ module.exports = {
     playerCharacter: {
       fileName: "player.png",
       frameDimensions: {
-        width: 24,
+        width: 32,
         height: 32,
       },
     },

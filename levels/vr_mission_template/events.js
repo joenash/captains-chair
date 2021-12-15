@@ -1,23 +1,21 @@
 module.exports = async function (event, world) {
-  console.log(`Captains chair: ${event.name}`);
-
-  const playerGuid = world.getContext().user.guid;
-  const { player } = world.__internals.level;
-  const keys = [
-    "w",
-    "arrowup",
-    "a",
-    "arrowleft",
-    "s",
-    "arrowright",
-    "d",
-    "arrowdown",
-  ];
-  const { game } = world.__internals.level;
-  console.log("Player", player);
-  const username = world.getContext().settings.name;
+  console.log(`Captain's chair: ${event.name}`);
 
   if (event.name === "mapDidLoad") {
+    const playerGuid = world.getContext().user.guid;
+    const { player } = world.__internals.level;
+    const keys = [
+      "w",
+      "arrowup",
+      "a",
+      "arrowleft",
+      "s",
+      "arrowright",
+      "d",
+      "arrowdown",
+    ];
+    const { game } = world.__internals.level;
+
     let { SyncClient } = require("twilio-sync");
 
     console.log("Fetching Streams");
@@ -32,22 +30,27 @@ module.exports = async function (event, world) {
 
     initializeDocuments(syncClient, teamDocuments, world);
 
+    // Publish moves on an interval, or on a keypress.
+    // Streams will publish max 30 times per second, so interval is in
+    // theory more predictable and should yield smoother
+    // performance.
+    setInterval(() => publishMove(syncStream, player), 50);
+
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (keys.includes(key)) {
-        publishMove(syncStream, player, key);
+        lastKey = key;
+        publishMove(syncStream, player);
       }
     });
     window.addEventListener("keyup", (event) => {
       const key = event.key.toLowerCase();
       if (keys.includes(key)) {
-        publishMove(syncStream, player, key);
+        lastKey = "";
+        publishMove(syncStream, player);
       }
     });
   }
-
-  console.log(event);
-  console.log(world.getContext());
 };
 
 async function getSyncToken(guid) {
@@ -55,7 +58,6 @@ async function getSyncToken(guid) {
   const res = await fetch(`https://845b-82-217-150-167.ngrok.io/token/${guid}`);
   const data = await res.json();
   const token = data.token;
-  console.log(token);
   return token;
 }
 
@@ -63,7 +65,6 @@ async function getTeams(guid) {
   console.log("Fetching Teams");
   const res = await fetch(`https://845b-82-217-150-167.ngrok.io/team/${guid}`);
   const teamIds = await res.json();
-  console.log(teamIds);
   return teamIds;
 }
 
@@ -72,19 +73,20 @@ async function initializeDocuments(syncClient, documents, world) {
   const username = world.getContext().settings.name;
   for (teamDocument of documents) {
     const document = await syncClient.document(teamDocument.uniqueName);
-    console.log("Successfully opened document", document);
+    console.log(`Successfully opened document ${teamDocument.uniqueName}`);
 
     document.on("updated", (event) => {
       console.log('Received an "updated" event: ', event);
+      // TODO Handle players joining here
     });
 
     const playerList = document.data.players;
     const playerIndex = playerList.findIndex((p) => p.guid === playerGuid);
     if (playerIndex === -1) {
-      console.log("player list:", playerList);
       playerList.push({ guid: playerGuid, name: username });
-      console.log("player list updated:", playerList);
+      // TODO add active status here
     } else {
+      // TODO check active status and update here
       console.log("Player already exists");
     }
 
@@ -96,6 +98,7 @@ async function initializeDocuments(syncClient, documents, world) {
       .catch((error) => console.log("Failed to write to doc", error));
 
     for (const p of playerList) {
+      // TODO check if active here
       if (p.guid !== playerGuid) {
         initializeStream(syncClient, world, p.guid);
       }
@@ -105,24 +108,55 @@ async function initializeDocuments(syncClient, documents, world) {
 
 async function initializeStream(syncClient, world, playerGuid) {
   const yourPlayerGuid = world.getContext().user.guid;
-  const yourPlayer = world.__internals.level.player;
   const { game } = world.__internals.level;
-  console.log("Init Stream game:", game);
+  console.log(`Initializing stream for ${playerGuid}`);
   let stream = await syncClient.stream(playerGuid);
-  console.log("Initialized stream: ", stream.uniqueName);
+  console.log(`Initialized stream for ${playerGuid}: ${stream.uniqueName}`);
+
   if (stream.uniqueName !== yourPlayerGuid) {
     //if (true) {
     const s = game.add.sprite(0, 0, "playerCharacter", 0);
+
+    // Set up animations
+    const directionFrames = {
+      LEFT: 24,
+      RIGHT: 8,
+      UP: 16,
+      DOWN: 0,
+    };
+
+    s.animations.add("moveDown", [5, 6, 7, 6], 8, true);
+    s.animations.add("moveUp", [21, 22, 23, 22], 8, true);
+    s.animations.add("moveRight", [13, 14, 15, 14], 8, true);
+    s.animations.add("moveLeft", [29, 30, 31, 30], 8, true);
+    s.frame = directionFrames.DOWN;
+
+    // Adding the sprite to the object group renders it in the correct layer.
+    // However, it introduces collision with the player, on the players side.
+    //world.entityService.groups.objects.add(s);
+
+    // Strip playerCharacters and players out of the object group to remove
+    // collisions.
+
+    const entityGroup = world.entityService
+      .getGroup("objects")
+      .children.filter(
+        (entity) => entity.key !== "player" && entity.key !== "playerCharacter"
+      );
+
+    // Configure the sprite's physics body behaviour
     s.anchor.setTo(0, 0);
     game.physics.arcade.enable(s);
-    console.log(s);
+    s.body.setSize(18, 12, 6, 20);
     s.body.collideWorldBounds = true;
     s.body.bounce.setTo(0, 0);
+    s.visible = false;
+
+    // Set up sprite collisions
     s.update = function () {
-      game.physics.arcade.collide(
-        s,
-        yourPlayer.level.entityService.getGroup("objects")
-      );
+      // Collide with the Objects layer
+      game.physics.arcade.collide(s, entityGroup);
+
       world.__internals.TiledService.getLayers(
         (layer) => layer.properties.collision
       ).forEach((collisionLayer) => {
@@ -130,21 +164,13 @@ async function initializeStream(syncClient, world, playerGuid) {
       });
     };
 
-    // This doesn't work as its outside update loop
-    // game.physics.arcade.collide(
-    //   s,
-    //   player.level.entityService.getGroup("objects")
-    // );
-
-    s.visible = false;
-    console.log("sprite", s);
     let lastTime = 0;
+    let messageCount = 0;
     stream.on("messagePublished", (event) => {
-      console.log('Received a "messagePublished" event:', event);
-      // const { x, y } = event.message.data;
-      // s.x = x;
-      // s.y = y;
+      messageCount += 1;
+      //console.log('Received a "messagePublished" event:', event);
       const data = event.message.data;
+      // Ensure message is newer than last actioned message
       if (data.ts < lastTime) {
         return;
       }
@@ -154,6 +180,11 @@ async function initializeStream(syncClient, world, playerGuid) {
         s.y = event.message.data.y;
         s.visible = true;
       }
+      if (messageCount > 30) {
+        console.log("reconcile");
+        reconcilePosition(s, data);
+        messageCount = 0;
+      }
       moveSprite(s, data);
     });
   }
@@ -162,6 +193,13 @@ async function initializeStream(syncClient, world, playerGuid) {
 }
 
 function moveSprite(sprite, data) {
+  const directionFrames = {
+    LEFT: 24,
+    RIGHT: 8,
+    UP: 16,
+    DOWN: 0,
+  };
+
   const { keys, movementDisabled, collision, x, y } = data;
 
   let moveSpeed = {};
@@ -170,11 +208,20 @@ function moveSprite(sprite, data) {
   sprite.body.velocity.y = 0;
 
   if (movementDisabled) {
+    sprite.animations.stop();
     return;
   }
 
+  let animating = false;
+
   // Terrible hack pending working collision
   // if (collision !== "noCollisions") {
+  //   if (sprite.y <= y - 2 || sprite.y >= y + 2) {
+  //     sprite.y = y;
+  //   }
+  //   if (sprite.x <= x - 2 || sprite.x >= x + 2) {
+  //     sprite.x = x;
+  //   }
   //   sprite.body.velocity.x = 0;
   //   sprite.body.velocity.y = 0;
   //   sprite.x = x;
@@ -184,14 +231,14 @@ function moveSprite(sprite, data) {
 
   // left and right keyboard movement
   if (keys.left.isDown || keys.a.isDown) {
-    // sprite.animations.play("moveLeft");
-    // sprite.directionFrame = directionFrames.LEFT;
-    // animating = true;
+    sprite.animations.play("moveLeft");
+    sprite.directionFrame = directionFrames.LEFT;
+    animating = true;
     moveSpeed.x = -120;
   } else if (keys.right.isDown || keys.d.isDown) {
-    // sprite.animations.play("moveRight");
-    // sprite.directionFrame = directionFrames.RIGHT;
-    // animating = true;
+    sprite.animations.play("moveRight");
+    sprite.directionFrame = directionFrames.RIGHT;
+    animating = true;
     moveSpeed.x = 120;
   } else {
     moveSpeed.x = 0;
@@ -199,16 +246,16 @@ function moveSprite(sprite, data) {
 
   // up and down keyboard movement
   if (keys.up.isDown || keys.w.isDown) {
-    // if (!animating) {
-    //   sprite.animations.play("moveUp");
-    //   sprite.directionFrame = directionFrames.UP;
-    // }
+    if (!animating) {
+      sprite.animations.play("moveUp");
+      sprite.directionFrame = directionFrames.UP;
+    }
     moveSpeed.y = -120;
   } else if (keys.down.isDown || keys.s.isDown) {
-    // if (!animating) {
-    //   sprite.animations.play("moveDown");
-    //   sprite.directionFrame = directionFrames.DOWN;
-    // }
+    if (!animating) {
+      sprite.animations.play("moveDown");
+      sprite.directionFrame = directionFrames.DOWN;
+    }
     moveSpeed.y = 120;
   } else {
     moveSpeed.y = 0;
@@ -217,16 +264,25 @@ function moveSprite(sprite, data) {
   if (Math.abs(moveSpeed.x) > 0 || Math.abs(moveSpeed.y) > 0) {
     sprite.body.velocity.x = moveSpeed.x;
     sprite.body.velocity.y = moveSpeed.y;
-    //this.footStepSfx.tryStep();
   } else {
-    // this.sprite.animations.stop();
-    // this.sprite.frame = this.sprite.directionFrame;
+    sprite.animations.stop();
+    sprite.frame = sprite.directionFrame;
   }
 }
 
-function reconcilePosition(sprite, x, y) {}
+function reconcilePosition(sprite, data) {
+  const { keys, movementDisabled, collision, x, y } = data;
 
-async function publishMove(stream, player, key) {
+  if (sprite.body.x !== x) {
+    sprite.x = x;
+  }
+
+  if (sprite.body.y !== y) {
+    sprite.y = y;
+  }
+}
+
+async function publishMove(stream, player) {
   const keys = {
     up: { isDown: player.keys.up.isDown },
     w: { isDown: player.keys.w.isDown },
@@ -249,10 +305,10 @@ async function publishMove(stream, player, key) {
       ts: Date.now(),
     })
     .then((message) => {
-      console.log(
-        "Stream publishMessage() successful, message SID:",
-        message.sid
-      );
+      // console.log(
+      //   "Stream publishMessage() successful, message SID:",
+      //   message.sid
+      // );
     })
     .catch((error) => {
       console.error("Stream publishMessage() failed", error);
