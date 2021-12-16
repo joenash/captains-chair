@@ -75,8 +75,11 @@ module.exports = async function (event, world) {
     );
     if (foundStream > -1) {
       console.log("Closing player stream");
-      streams[foundStream].publishMessage({ disconnect: true });
-      streams[foundStream].close();
+      streams[foundStream]
+        .publishMessage({ disconnect: true })
+        .then((message) => {
+          streams[foundStream].close();
+        });
     }
 
     if (typeof syncClient !== "undefined") {
