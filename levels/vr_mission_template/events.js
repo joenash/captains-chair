@@ -75,9 +75,10 @@ module.exports = async function (event, world) {
     );
     if (foundStream > -1) {
       console.log("Closing player stream");
+      const stream = streams[foundStream];
       // TODO socket not initialized here. Also remove a sprite on this message
-      streams[foundStream].publishMessage({ disconnect: true });
-      streams[foundStream].close();
+      const message = await stream.publishMessage({ disconnect: true });
+      stream.close();
     }
 
     if (typeof syncClient !== "undefined") {
@@ -254,6 +255,7 @@ async function initializeStream(syncClient, world, playerGuid) {
         console.log(`Closing stream ${stream.uniqueName}`);
         s.destroy();
         stream.close();
+        return;
       }
       // Ensure message is newer than last actioned message
       if (data.ts < lastTime) {
