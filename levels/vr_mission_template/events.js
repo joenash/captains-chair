@@ -21,7 +21,10 @@ let keydownhandler;
 let keyuphandler;
 let lastUpdate = 0;
 
-// Various methods of position reconciliation
+// Setup for various methods of position reconciliation
+
+// Reconcile the position every x messages
+let messageCount = 0;
 
 // Reconcile the position on an interval
 // let recFunction = () => {};
@@ -258,7 +261,6 @@ async function initializeStream(syncClient, world, playerGuid) {
     };
 
     let lastTime = 0;
-    let messageCount = 0;
 
     stream.on("removed", (data) => {
       console.log(`Stream ${stream.uniqueName} removed.`);
@@ -301,10 +303,13 @@ async function initializeStream(syncClient, world, playerGuid) {
       //   }
       // };
 
-      // if (messageCount > 30) {
-      //   reconcilePosition(s, data);
-      //   messageCount = 0;
-      // }
+      // Reconciliation happens right before move,
+      // so that new movement is applied to the updated position.
+      if (messageCount > 30) {
+        reconcilePosition(s, data);
+        messageCount = 0;
+      }
+
       moveSprite(s, data);
     });
 
