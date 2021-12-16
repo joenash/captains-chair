@@ -85,6 +85,8 @@ module.exports = async function (event, world) {
       console.log("Shutting down sync client");
       syncClient.shutdown();
     }
+
+    streams = [];
   }
 };
 
