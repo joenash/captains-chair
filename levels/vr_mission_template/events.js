@@ -113,7 +113,7 @@ module.exports = async function (event, world) {
 
 async function getSyncToken(guid) {
   console.log("Fetching token");
-  const res = await fetch(`https://845b-82-217-150-167.ngrok.io/token/${guid}`);
+  const res = await fetch(`https://captains-chair.herokuapp.com/token/${guid}`);
   const data = await res.json();
   const token = data.token;
   return token;
@@ -121,7 +121,7 @@ async function getSyncToken(guid) {
 
 async function getTeams(guid) {
   console.log("Fetching Teams");
-  const res = await fetch(`https://845b-82-217-150-167.ngrok.io/team/${guid}`);
+  const res = await fetch(`https://captains-chair.herokuapp.com/team/${guid}`);
   const teamIds = await res.json();
   return teamIds;
 }
@@ -214,8 +214,8 @@ async function initializeStream(syncClient, world, playerGuid) {
     );
   }
 
-  if (stream.uniqueName !== yourPlayerGuid) {
-    //if (true) {
+  //if (stream.uniqueName !== yourPlayerGuid) {
+  if (true) {
     const s = game.add.sprite(0, 0, "playerCharacter", 0);
 
     // Set up animations
