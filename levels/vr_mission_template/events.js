@@ -19,11 +19,24 @@ const directionFrames = {
 };
 let keydownhandler;
 let keyuphandler;
-let recTimer = 0;
-let recFunction;
-setInterval(() => {
-  recFunction();
-}, 500);
+let lastUpdate = 0;
+
+// Various methods of position reconciliation
+
+// Reconcile the position on an interval
+// let recFunction = () => {};
+// setInterval(() => {
+//   recFunction();
+// }, 500);
+
+// Reconcile the position if a message has not been received for a period of time.
+// let timeSinceUpdate = () => {};
+// setInterval(() => {
+//   timeSinceUpdate();
+// }, 100);
+
+// Halt the sprite if an update has not been received in a given period of time.
+let newUpdate = false;
 
 module.exports = async function (event, world) {
   console.log(`Captain's chair: ${event.name}`);
@@ -254,6 +267,7 @@ async function initializeStream(syncClient, world, playerGuid) {
     });
 
     stream.on("messagePublished", (event) => {
+      newUpdate = true;
       messageCount += 1;
       //console.log('Received a "messagePublished" event:', event);
       const data = event.message.data;
@@ -275,9 +289,17 @@ async function initializeStream(syncClient, world, playerGuid) {
         s.visible = true;
       }
 
-      recFunction = () => {
-        reconcilePosition(s, data);
-      };
+      // recFunction = () => {
+      //   reconcilePosition(s, data);
+      // };
+
+      // timeSinceUpdate = () => {
+      //   const curTime = Date.now();
+
+      //   if (curTime > lastUpdate + 1000) {
+      //     reconcilePosition(s, data);
+      //   }
+      // };
 
       // if (messageCount > 30) {
       //   reconcilePosition(s, data);
@@ -364,6 +386,17 @@ function moveSprite(sprite, data) {
     sprite.animations.stop();
     sprite.frame = sprite.directionFrame;
   }
+
+  newUpdate = false;
+  setTimeout(() => {
+    if (newUpdate === false) {
+      sprite.body.velocity.x = 0;
+      sprite.body.velocity.y = 0;
+      sprite.animations.stop();
+      sprite.frame = sprite.directionFrame;
+    }
+  }, 500);
+  lastUpdate = Date.now();
 }
 
 function reconcilePosition(sprite, data) {
@@ -371,11 +404,15 @@ function reconcilePosition(sprite, data) {
 
   if (sprite.body.x !== x) {
     sprite.x = x;
+    sprite.body.velocity.x = 0;
   }
 
   if (sprite.body.y !== y) {
     sprite.y = y;
+    sprite.body.velocity.y = 0;
   }
+
+  lastUpdate = Date.now();
 }
 
 async function publishMove(stream, player) {
