@@ -19,6 +19,10 @@ const directionFrames = {
 };
 let keydownhandler;
 let keyuphandler;
+let recTimer = 0;
+setInterval(() => {
+  recTimer += 1;
+}, 500);
 
 module.exports = async function (event, world) {
   console.log(`Captain's chair: ${event.name}`);
@@ -269,9 +273,11 @@ async function initializeStream(syncClient, world, playerGuid) {
         s.y = event.message.data.y;
         s.visible = true;
       }
-      if (messageCount > 30) {
+      //if (messageCount > 30) {
+      if (recTimer > 1) {
         reconcilePosition(s, data);
-        messageCount = 0;
+        //messageCount = 0;
+        recTimer = 0;
       }
       moveSprite(s, data);
     });
