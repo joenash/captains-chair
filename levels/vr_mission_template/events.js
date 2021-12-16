@@ -39,7 +39,7 @@ let messageCount = 0;
 // }, 100);
 
 // Halt the sprite if an update has not been received in a given period of time.
-let newUpdate = false;
+let timer = null;
 
 module.exports = async function (event, world) {
   console.log(`Captain's chair: ${event.name}`);
@@ -269,7 +269,7 @@ async function initializeStream(syncClient, world, playerGuid) {
     });
 
     stream.on("messagePublished", (event) => {
-      newUpdate = true;
+      clearTimeout(timer);
       messageCount += 1;
       //console.log('Received a "messagePublished" event:', event);
       const data = event.message.data;
@@ -392,16 +392,15 @@ function moveSprite(sprite, data) {
     sprite.frame = sprite.directionFrame;
   }
 
-  newUpdate = false;
-  setTimeout(() => {
-    if (newUpdate === false) {
-      sprite.body.velocity.x = 0;
-      sprite.body.velocity.y = 0;
-      sprite.animations.stop();
-      sprite.frame = sprite.directionFrame;
-    }
-  }, 500);
-  lastUpdate = Date.now();
+  // timer = setTimeout(() => {
+  //   console.log("No new update");
+  //   reconcilePosition(sprite, data);
+  //   // sprite.body.velocity.x = 0;
+  //   // sprite.body.velocity.y = 0;
+  //   // sprite.animations.stop();
+  //   // sprite.frame = sprite.directionFrame;
+  // }, 850);
+  //lastUpdate = Date.now();
 }
 
 function reconcilePosition(sprite, data) {
@@ -417,7 +416,7 @@ function reconcilePosition(sprite, data) {
     sprite.body.velocity.y = 0;
   }
 
-  lastUpdate = Date.now();
+  //lastUpdate = Date.now();
 }
 
 async function publishMove(stream, player) {
