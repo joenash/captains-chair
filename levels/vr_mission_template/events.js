@@ -275,7 +275,7 @@ async function initializeStream(syncClient, world, playerGuid) {
         s.visible = true;
       }
 
-      recFunction = (s, data) => {
+      recFunction = () => {
         reconcilePosition(s, data);
       };
 
@@ -367,7 +367,7 @@ function moveSprite(sprite, data) {
 }
 
 function reconcilePosition(sprite, data) {
-  const { keys, movementDisabled, collision, x, y } = data;
+  const { x, y } = data;
 
   if (sprite.body.x !== x) {
     sprite.x = x;
