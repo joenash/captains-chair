@@ -20,8 +20,9 @@ const directionFrames = {
 let keydownhandler;
 let keyuphandler;
 let recTimer = 0;
+let recFunction;
 setInterval(() => {
-  recTimer += 1;
+  recFunction();
 }, 500);
 
 module.exports = async function (event, world) {
@@ -273,12 +274,15 @@ async function initializeStream(syncClient, world, playerGuid) {
         s.y = event.message.data.y;
         s.visible = true;
       }
-      //if (messageCount > 30) {
-      if (recTimer > 1) {
+
+      recFunction = (s, data) => {
         reconcilePosition(s, data);
-        //messageCount = 0;
-        recTimer = 0;
-      }
+      };
+
+      // if (messageCount > 30) {
+      //   reconcilePosition(s, data);
+      //   messageCount = 0;
+      // }
       moveSprite(s, data);
     });
 
