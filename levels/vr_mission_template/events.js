@@ -75,11 +75,9 @@ module.exports = async function (event, world) {
     );
     if (foundStream > -1) {
       console.log("Closing player stream");
-      streams[foundStream]
-        .publishMessage({ disconnect: true })
-        .then((message) => {
-          streams[foundStream].close();
-        });
+      // TODO socket not initialized here. Also remove a sprite on this message
+      streams[foundStream].publishMessage({ disconnect: true });
+      streams[foundStream].close();
     }
 
     if (typeof syncClient !== "undefined") {
@@ -115,7 +113,7 @@ async function initializeDocuments(syncClient, documents, world) {
     document.on("updated", (event) => {
       console.log(`Document ${document.sid} update`);
       if (event.isLocal) {
-        console.log("local update");
+        console.log("local update - ignoring");
         return;
       }
       const playerList = event.data.players;
@@ -127,7 +125,6 @@ async function initializeDocuments(syncClient, documents, world) {
           }
         }
       }
-      // TODO Handle players joining here
     });
 
     const playerList = document.data.players;
@@ -180,6 +177,7 @@ async function initializeStream(syncClient, world, playerGuid) {
 
   console.log("streams", streams);
   let stream = await syncClient.stream(playerGuid);
+  // Check if player has previously joined this session
   if (streamExists > -1) {
     streams[streamExists] = stream;
     console.log(
@@ -240,6 +238,13 @@ async function initializeStream(syncClient, world, playerGuid) {
 
     let lastTime = 0;
     let messageCount = 0;
+
+    stream.on("removed", (data) => {
+      console.log(`Stream ${stream.uniqueName} removed.`);
+      streams.filter((st) => st.uniqueName !== stream.uniqueName);
+      s.destroy();
+    });
+
     stream.on("messagePublished", (event) => {
       messageCount += 1;
       //console.log('Received a "messagePublished" event:', event);
@@ -247,6 +252,7 @@ async function initializeStream(syncClient, world, playerGuid) {
 
       if (data.disconnect) {
         console.log(`Closing stream ${stream.uniqueName}`);
+        s.destroy();
         stream.close();
       }
       // Ensure message is newer than last actioned message
