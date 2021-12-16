@@ -214,8 +214,8 @@ async function initializeStream(syncClient, world, playerGuid) {
     );
   }
 
-  //if (stream.uniqueName !== yourPlayerGuid) {
-  if (true) {
+  if (stream.uniqueName !== yourPlayerGuid) {
+    //if (true) {
     const s = game.add.sprite(0, 0, "playerCharacter", 0);
 
     // Set up animations
