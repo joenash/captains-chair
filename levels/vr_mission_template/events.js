@@ -75,6 +75,7 @@ module.exports = async function (event, world) {
     );
     if (foundStream > -1) {
       console.log("Closing player stream");
+      streams[foundStream].publishMessage({ disconnect: true });
       streams[foundStream].close();
     }
 
@@ -166,7 +167,6 @@ async function initializeStream(syncClient, world, playerGuid) {
   const yourPlayerGuid = world.getContext().user.guid;
   const { game } = world.__internals.level;
   console.log(`Initializing stream for ${playerGuid}`);
-  console.log("streams", streams);
   const streamExists = streams.findIndex(
     (stream) => stream.uniqueName === playerGuid
   );
@@ -241,6 +241,11 @@ async function initializeStream(syncClient, world, playerGuid) {
       messageCount += 1;
       //console.log('Received a "messagePublished" event:', event);
       const data = event.message.data;
+
+      if (data.disconnect) {
+        console.log(`Closing stream ${stream.uniqueName}`);
+        stream.close();
+      }
       // Ensure message is newer than last actioned message
       if (data.ts < lastTime) {
         return;
@@ -252,7 +257,6 @@ async function initializeStream(syncClient, world, playerGuid) {
         s.visible = true;
       }
       if (messageCount > 30) {
-        console.log("reconcile");
         reconcilePosition(s, data);
         messageCount = 0;
       }
